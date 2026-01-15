@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { supabase } from "../supabase/client";
+import { useEffect, useState } from "react";
 
 export default function ProtectedRoute({ children }) {
   const [loading, setLoading] = useState(true);
@@ -13,8 +13,11 @@ export default function ProtectedRoute({ children }) {
     });
   }, []);
 
-  if (loading) return <div className="p-6 text-white">Cargando...</div>;
-  if (!session) return <Navigate to="/login" replace />;
+  if (loading) return null;
+
+  if (!session) {
+    return <Navigate to="/login" replace />;
+  }
 
   return children;
 }

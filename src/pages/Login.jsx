@@ -1,9 +1,11 @@
 import { useState } from "react";
-import { supabase } from "../supabase/client";
 import { useNavigate, Link } from "react-router-dom";
+import { supabase } from "../supabase/client";
+import { getMyRole } from "../supabase/db";
 
 export default function Login() {
   const navigate = useNavigate();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
@@ -12,48 +14,57 @@ export default function Login() {
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    setMsg("");
     setLoading(true);
+    setMsg("");
 
-    // 1) login
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    try {
+      // 1) Login
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-    if (error) {
-      setMsg("❌ " + error.message);
-      setLoading(false);
-      return;
+      if (error) {
+        setMsg("Correo o contraseña incorrectos.");
+        setLoading(false);
+        return;
+      }
+
+      // 2) Confirmar sesión
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session) {
+        setMsg("No se pudo iniciar sesión. Intenta nuevamente.");
+        setLoading(false);
+        return;
+      }
+
+      // 3) Detectar rol
+      const role = await getMyRole();
+
+      // 4) Redirección inteligente
+      if (role === "admin") {
+        navigate("/admin", { replace: true });
+        return;
+      }
+
+      if (role === "investor") {
+        navigate("/dashboard/investor", { replace: true });
+        return;
+      }
+
+      if (role === "entrepreneur") {
+        navigate("/dashboard/entrepreneur", { replace: true });
+        return;
+      }
+
+      // si no tiene rol → seleccionar rol
+      navigate("/select-role?setup=1", { replace: true });
+    } catch (err) {
+      setMsg("Ocurrió un error inesperado. Intenta nuevamente.");
     }
-
-    const userId = data.user?.id;
-
-    // 2) leer rol (sin romper si no existe)
-    const { data: profile, error: profErr } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", userId)
-      .maybeSingle(); // ✅ en vez de single()
-
-    if (profErr) {
-      setMsg("❌ Error leyendo perfil: " + profErr.message);
-      setLoading(false);
-      return;
-    }
-
-    // 3) si no hay perfil => este user no tiene rol aún
-    if (!profile) {
-      // guardamos temporal para luego crear perfil
-      localStorage.setItem("pending_profile_user_id", userId);
-      navigate("/select-role?setup=1");
-      setLoading(false);
-      return;
-    }
-
-    // 4) redirigir según rol
-    if (profile.role === "investor") navigate("/dashboard/investor");
-    else navigate("/dashboard/entrepreneur");
 
     setLoading(false);
   };
@@ -62,22 +73,34 @@ export default function Login() {
     <div className="min-h-screen bg-[#070A0F] text-white flex items-center justify-center px-6">
       <div className="w-full max-w-md rounded-3xl border border-white/10 bg-white/5 p-8 backdrop-blur">
         <h1 className="text-2xl font-semibold">Iniciar sesión</h1>
+        <p className="mt-2 text-sm text-white/60">
+          Accede con tu correo y contraseña.
+        </p>
 
         <form onSubmit={handleLogin} className="mt-6 space-y-4">
-          <input
-            className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm outline-none"
-            placeholder="Correo"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
+          <label className="block">
+            <span className="text-sm text-white/70">Correo</span>
+            <input
+              className="mt-2 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-white/30 focus:border-emerald-400/40 focus:ring-4 focus:ring-emerald-500/10 transition"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="tucorreo@gmail.com"
+              type="email"
+              required
+            />
+          </label>
 
-          <input
-            className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm outline-none"
-            placeholder="Contraseña"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
+          <label className="block">
+            <span className="text-sm text-white/70">Contraseña</span>
+            <input
+              className="mt-2 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-white/30 focus:border-emerald-400/40 focus:ring-4 focus:ring-emerald-500/10 transition"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Tu contraseña"
+              type="password"
+              required
+            />
+          </label>
 
           <button
             disabled={loading}
@@ -87,15 +110,15 @@ export default function Login() {
           </button>
 
           {msg && (
-            <div className="rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+            <div className="rounded-2xl border border-red-400/25 bg-red-500/10 px-4 py-3 text-sm text-red-200">
               {msg}
             </div>
           )}
         </form>
 
-        <p className="mt-6 text-sm text-white/60">
+        <p className="mt-5 text-sm text-white/60">
           ¿No tienes cuenta?{" "}
-          <Link className="text-emerald-300 font-semibold" to="/select-role">
+          <Link to="/register" className="text-emerald-300 hover:text-emerald-200">
             Crear cuenta
           </Link>
         </p>

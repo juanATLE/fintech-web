@@ -1,36 +1,27 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { supabase } from "../supabase/client";
 import { useNavigate } from "react-router-dom";
 
 export default function Register() {
   const navigate = useNavigate();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-
-  const [role, setRole] = useState(null);
 
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState("");
   const [msgType, setMsgType] = useState("error");
-
-  useEffect(() => {
-    const savedRole = localStorage.getItem("selected_role");
-    setRole(savedRole);
-
-    // si no eligió rol, lo mandamos a elegir
-    if (!savedRole) navigate("/select-role");
-  }, [navigate]);
 
   const handleRegister = async (e) => {
     e.preventDefault();
     setMsg("");
     setLoading(true);
 
-    // 1) crear usuario auth
-    const { data, error } = await supabase.auth.signUp({
+    // ✅ 1) Crear usuario Auth (Supabase)
+    const { error } = await supabase.auth.signUp({
       email,
       password,
-      options: { emailRedirectTo: window.location.origin },
+      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
     });
 
     if (error) {
@@ -40,31 +31,15 @@ export default function Register() {
       return;
     }
 
-    // 2) insertar perfil con rol
-    const userId = data.user?.id;
-
-    if (userId) {
-      const { error: profileError } = await supabase.from("profiles").insert([
-        {
-          id: userId,
-          role: role, // investor / entrepreneur
-        },
-      ]);
-
-      if (profileError) {
-        setMsgType("error");
-        setMsg("Usuario creado, pero falló crear perfil: " + profileError.message);
-        setLoading(false);
-        return;
-      }
-    }
+    // ✅ 2) NO insertar profiles aquí
+    // El profile se creará automáticamente con TRIGGER en Supabase
 
     setMsgType("success");
     setMsg("✅ Cuenta creada. Revisa tu correo para confirmar.");
     setLoading(false);
 
-    // opcional
-    // navigate("/login");
+    // opcional: llevar al login
+    setTimeout(() => navigate("/login"), 1200);
   };
 
   return (
@@ -72,8 +47,7 @@ export default function Register() {
       <div className="w-full max-w-md rounded-3xl border border-white/10 bg-white/5 p-8 backdrop-blur">
         <h1 className="text-2xl font-semibold">Crear cuenta</h1>
         <p className="mt-2 text-sm text-white/70">
-          Rol seleccionado:{" "}
-          <span className="font-semibold text-emerald-300">{role}</span>
+          Regístrate para poder publicar u ofertar en subastas.
         </p>
 
         <form onSubmit={handleRegister} className="mt-6 space-y-4">
@@ -84,6 +58,8 @@ export default function Register() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="tucorreo@gmail.com"
+              type="email"
+              required
             />
           </label>
 
@@ -95,6 +71,8 @@ export default function Register() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="mínimo 8 caracteres"
+              minLength={8}
+              required
             />
           </label>
 
@@ -119,10 +97,10 @@ export default function Register() {
         </form>
 
         <button
-          onClick={() => navigate("/select-role")}
+          onClick={() => navigate("/login")}
           className="mt-5 text-sm text-white/60 hover:text-white/90"
         >
-          ← Cambiar rol
+          ¿Ya tienes cuenta? Inicia sesión →
         </button>
       </div>
     </div>
